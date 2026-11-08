@@ -1,0 +1,8 @@
+{
+  "id": "settingsModules",
+  "type": "panel",
+  "label": "Modules",
+  "version": "0.1.0",
+  "group": "Settings",
+  "order": 90
+}

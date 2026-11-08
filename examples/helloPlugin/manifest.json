@@ -1,0 +1,9 @@
+{
+  "id": "helloPlugin",
+  "type": "panel",
+  "label": "Hello Plugin",
+  "version": "0.1.0",
+  "entry": "index.js",
+  "group": "Plugins",
+  "order": 50
+}

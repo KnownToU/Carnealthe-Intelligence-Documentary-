@@ -1,0 +1,7 @@
+{
+  "id": "dashboard",
+  "type": "panel",
+  "label": "Dashboard",
+  "version": "0.1.0",
+  "order": 0
+}

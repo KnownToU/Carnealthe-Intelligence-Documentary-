@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CID — Carnealthe Intelligence Documentary</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Overlay gelap saat drawer terbuka -->
+  <div id="shell-overlay" class="shell-overlay"></div>
+
+  <!-- Side Drawer -->
+  <aside id="shell-drawer" class="shell-drawer" aria-label="Main navigation">
+    <div class="shell-drawer__header">
+      <span class="shell-drawer__logo">CID</span>
+      <span class="shell-drawer__subtitle">Intelligence Documentary</span>
+    </div>
+    <!-- Menu dirender oleh drawer.js ke dalam elemen ini -->
+    <nav data-drawer-nav></nav>
+  </aside>
+
+  <!-- Area Utama -->
+  <div class="shell-layout">
+    <!-- Top Bar -->
+    <header class="shell-topbar">
+      <button id="shell-menu-btn" class="shell-topbar__menu-btn" aria-label="Open menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+      <span class="shell-topbar__title">CID</span>
+    </header>
+
+    <!-- Konten Panel — diisi oleh shell.js -->
+    <main id="shell-content" class="shell-content"></main>
+  </div>
+
+  <script type="module">
+    import { initShell } from './src/shell.js';
+    initShell();
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,377 @@
+/* ============================================================
+   CID — Base Styles
+   Dark Tactical / Intelligence Workspace
+   ============================================================ */
+
+/* --- CSS Variables --- */
+:root {
+  --color-bg:          #0e1424;
+  --color-surface:     #151d33;
+  --color-secondary:   #27335a;
+  --color-text:        #e8ecf7;
+  --color-text-muted:  #7a89b0;
+  --color-accent:      #f5b544;
+  --color-error:       #e05c5c;
+  --color-success:     #4caf82;
+  --color-warning:     #f5b544;
+
+  --drawer-width:      280px;
+  --topbar-height:     52px;
+  --transition-fast:   150ms ease;
+  --transition-normal: 250ms ease;
+  --radius-sm:         4px;
+  --radius-md:         8px;
+}
+
+/* --- Reset Minimal --- */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: 'Segoe UI', system-ui, sans-serif; /* Ganti dengan @font-face nanti */
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+ul {
+  list-style: none;
+}
+
+/* --- Layout Utama --- */
+.shell-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  /* Tidak perlu margin-left karena drawer adalah overlay di mobile */
+}
+
+/* --- Overlay --- */
+.shell-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 10;
+  transition: opacity var(--transition-normal);
+}
+
+.shell-overlay.is-visible {
+  display: block;
+}
+
+/* --- Drawer --- */
+.shell-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: var(--drawer-width);
+  height: 100dvh;
+  background-color: var(--color-surface);
+  border-right: 1px solid var(--color-secondary);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  transform: translateX(-100%);
+  transition: transform var(--transition-normal);
+}
+
+.shell-drawer.is-open {
+  transform: translateX(0);
+}
+
+.shell-drawer__header {
+  padding: 20px 16px 16px;
+  border-bottom: 1px solid var(--color-secondary);
+}
+
+.shell-drawer__logo {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--color-accent);
+}
+
+.shell-drawer__subtitle {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* --- Menu di Drawer --- */
+.drawer-menu {
+  padding: 8px 0;
+}
+
+.drawer-item__btn {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 10px 16px;
+  font-size: 0.9rem;
+  color: var(--color-text);
+  text-align: left;
+  border-radius: var(--radius-sm);
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.drawer-item__btn:hover {
+  background-color: var(--color-secondary);
+}
+
+.drawer-item__btn--active {
+  color: var(--color-accent);
+  background-color: rgba(245, 181, 68, 0.08);
+  font-weight: 600;
+}
+
+/* Parent item: sedikit berbeda untuk menunjukkan ada anak */
+.drawer-item--parent > .drawer-item__btn::after {
+  content: '›';
+  margin-left: auto;
+  font-size: 1.1rem;
+  color: var(--color-text-muted);
+  transition: transform var(--transition-fast);
+}
+
+.drawer-item--parent.drawer-item--expanded > .drawer-item__btn::after {
+  transform: rotate(90deg);
+}
+
+/* Sub-menu (level 2) */
+.drawer-submenu {
+  padding-left: 12px;
+}
+
+.drawer-item--depth-2 .drawer-item__btn {
+  font-size: 0.85rem;
+  padding: 8px 16px;
+  color: var(--color-text-muted);
+}
+
+.drawer-item--depth-2 .drawer-item__btn:hover {
+  color: var(--color-text);
+}
+
+.drawer-item--depth-2 .drawer-item__btn--active {
+  color: var(--color-accent);
+}
+
+/* --- Top Bar --- */
+.shell-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: var(--topbar-height);
+  padding: 0 16px;
+  background-color: var(--color-surface);
+  border-bottom: 1px solid var(--color-secondary);
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.shell-topbar__menu-btn {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  transition: background-color var(--transition-fast);
+}
+
+.shell-topbar__menu-btn:hover {
+  background-color: var(--color-secondary);
+}
+
+.shell-topbar__menu-btn span {
+  display: block;
+  width: 20px;
+  height: 2px;
+  background-color: var(--color-text);
+  border-radius: 2px;
+}
+
+.shell-topbar__title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--color-accent);
+}
+
+/* --- Konten Panel --- */
+.shell-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 16px;
+}
+
+/* --- Panel Styles --- */
+.panel__title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 4px;
+}
+
+.panel__subtitle {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  letter-spacing: 0.04em;
+}
+
+.panel--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+}
+
+.panel__placeholder-label {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+/* --- Settings -> Modules --- */
+.notice {
+  margin: 16px 0;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+  border: 1px solid var(--color-secondary);
+  background-color: var(--color-surface);
+}
+
+.notice--warning {
+  border-color: var(--color-warning);
+}
+
+.module-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.module-empty {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.module-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-secondary);
+  border-radius: var(--radius-md);
+}
+
+.module-row__info {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.module-row__name {
+  font-weight: 600;
+}
+
+.module-row__meta {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.module-row__error {
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: var(--color-error);
+  overflow-wrap: anywhere;
+}
+
+.module-section-title {
+  font-size: 1rem;
+  margin-bottom: 4px;
+}
+
+.module-hint {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  margin-bottom: 10px;
+}
+
+.module-file {
+  display: block;
+  width: 100%;
+  margin-bottom: 12px;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.btn {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  font-weight: 600;
+  transition: opacity var(--transition-fast);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn--primary {
+  background-color: var(--color-accent);
+  color: var(--color-bg);
+}
+
+.btn--danger {
+  border: 1px solid var(--color-error);
+  color: var(--color-error);
+}
+
+.badge {
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border: 1px solid currentColor;
+}
+
+.badge--success { color: var(--color-success); }
+.badge--warning { color: var(--color-warning); }
+.badge--error   { color: var(--color-error); }
+.badge--pending { color: var(--color-text-muted); }
+
+.module-feedback {
+  margin-top: 12px;
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+
+.module-feedback--error   { color: var(--color-error); }
+.module-feedback--success { color: var(--color-success); }
+.module-feedback--info    { color: var(--color-text-muted); }

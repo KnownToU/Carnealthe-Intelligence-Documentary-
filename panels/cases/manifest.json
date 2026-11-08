@@ -1,0 +1,8 @@
+{
+  "id": "cases",
+  "type": "panel",
+  "label": "Cases",
+  "version": "0.1.0",
+  "group": "Intelligence",
+  "order": 10
+}
