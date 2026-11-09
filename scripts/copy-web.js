@@ -6,7 +6,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const WWW = path.join(ROOT, 'www');
 
-const ITEMS = ['index.html', 'style.css', 'src', 'panels'];
+const ITEMS = ['index.html', 'style.css', 'src', 'panels', 'tools'];
 // fonts/ belum ada, tambahin di sini kalau sudah jadi
 
 async function clean(dir) {
