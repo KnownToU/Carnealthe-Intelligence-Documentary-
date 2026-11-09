@@ -1,0 +1,7 @@
+{
+  "id": "hashText",
+  "type": "tool",
+  "label": "Hash Text",
+  "version": "0.1.0",
+  "group": "Tools"
+}

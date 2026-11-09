@@ -51,7 +51,7 @@ export function closeDrawer(drawerEl, overlayEl) {
  * Urutan mengikuti "order" di manifest, lalu abjad.
  */
 function buildMenuConfig() {
-  const panels = getByType(MODULE_TYPES.PANEL)
+  const panels = [...getByType(MODULE_TYPES.PANEL), ...getByType(MODULE_TYPES.TOOL)]
     .slice()
     .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label));
 

@@ -8,7 +8,8 @@
 
 const ID_PATTERN = /^[a-z][a-zA-Z0-9]*$/; // camelCase
 const ENTRY_PATTERN = /^[a-zA-Z0-9_-]+\.js$/; // satu nama file, tanpa slash
-const ALLOWED_TYPES = ['panel'];
+const ALLOWED_TYPES = ['panel', 'tool'];
+const ALLOWED_CAPABILITIES = ['http', 'readFile', 'saveToCase'];
 
 /** ID valid = camelCase, maksimal 40 karakter. Dipakai juga oleh storage plugin. */
 export function isValidId(id) {
@@ -26,7 +27,7 @@ export function validateManifest(manifest, folderName) {
   }
 
   const errors = [];
-  const { id, type, label, version, entry, group, order } = manifest;
+  const { id, type, label, version, entry, group, order, capabilities } = manifest;
 
   if (!isValidId(id)) {
     errors.push('id harus camelCase (huruf/angka, diawali huruf kecil)');
@@ -56,6 +57,20 @@ export function validateManifest(manifest, folderName) {
 
   if (order !== undefined && !Number.isFinite(order)) {
     errors.push('order harus berupa angka');
+  }
+
+  // capabilities: hanya boleh ada kalau type = 'tool'
+  if (capabilities !== undefined) {
+    if (type !== 'tool') {
+      errors.push('capabilities hanya boleh ada di type "tool"');
+    } else if (!Array.isArray(capabilities)) {
+      errors.push('capabilities harus berupa array');
+    } else {
+      const invalid = capabilities.filter(c => !ALLOWED_CAPABILITIES.includes(c));
+      if (invalid.length > 0) {
+        errors.push(`capabilities tidak dikenal: ${invalid.join(', ')}. Boleh: ${ALLOWED_CAPABILITIES.join(', ')}`);
+      }
+    }
   }
 
   return { ok: errors.length === 0, errors };

@@ -76,6 +76,7 @@ async function loadOne(base, folder) {
         label: manifest.label,
         group: manifest.group,
         order: manifest.order,
+        capabilities: manifest.capabilities,
         module: panel,
       },
     };

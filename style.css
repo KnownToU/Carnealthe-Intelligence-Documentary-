@@ -252,6 +252,33 @@ ul {
   font-size: 0.9rem;
 }
 
+/* --- Dashboard: Stat Cards --- */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.stat-card {
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  padding: 16px;
+}
+
+.stat-card__value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--color-accent);
+}
+
+.stat-card__label {
+  margin-top: 4px;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  letter-spacing: 0.03em;
+}
+
 /* --- Settings -> Modules --- */
 .notice {
   margin: 16px 0;

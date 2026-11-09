@@ -87,6 +87,7 @@ export function validatePluginInput(manifestText, codeText) {
   };
   if (raw.group !== undefined) manifest.group = raw.group.trim();
   if (raw.order !== undefined) manifest.order = raw.order;
+  if (raw.type === 'tool' && Array.isArray(raw.capabilities)) manifest.capabilities = raw.capabilities;
 
   return { manifest };
 }
@@ -238,7 +239,7 @@ async function loadOne(id, importer, timeoutMs) {
       version: m.version,
       status: 'ready',
       error: null,
-      def: { id, type: 'panel', label: m.label, group: m.group, order: m.order, source: 'plugin', module: panel },
+      def: { id, type: m.type, label: m.label, group: m.group, order: m.order, source: 'plugin', module: panel, capabilities: m.capabilities },
     };
   } catch (err) {
     console.warn(`[Plugin] "${id}" gagal dimuat: ${err.message}`);

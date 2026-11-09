@@ -14,9 +14,10 @@ import { on } from './core/eventBus.js';
 import { loadPanels } from './core/loader.js';
 import { loadInstalled } from './services/pluginService.js';
 import { initDrawer, openDrawer, closeDrawer } from './ui/drawer.js';
+import { buildCtx } from './core/capabilities.js';
 
-// Satu-satunya hal yang Shell tahu soal panel: di folder mana mereka berada.
 const PANELS_PATH = './panels';
+const TOOLS_PATH  = './tools';
 
 function renderPanel(panelId) {
   const contentEl = document.getElementById('shell-content');
@@ -40,7 +41,8 @@ function renderPanel(panelId) {
   }
 
   try {
-    contentEl.appendChild(def.module.render());
+    const ctx = buildCtx(def.capabilities);
+    contentEl.appendChild(def.module.render(ctx));
   } catch (err) {
     // Panel yang error tidak boleh menjatuhkan aplikasi.
     console.error(`[Shell] Panel "${panelId}" gagal dirender:`, err);
@@ -66,6 +68,10 @@ export async function initShell() {
   const { loaded, failed } = await loadPanels(PANELS_PATH);
   console.info(`[Shell] Panel dimuat: ${loaded.join(', ') || '(tidak ada)'}`);
   if (failed.length) console.warn(`[Shell] Panel gagal: ${failed.join(', ')}`);
+
+  const { loaded: toolsLoaded, failed: toolsFailed } = await loadPanels(TOOLS_PATH);
+  console.info(`[Shell] Tool dimuat: ${toolsLoaded.join(', ') || '(tidak ada)'}`);
+  if (toolsFailed.length) console.warn(`[Shell] Tool gagal: ${toolsFailed.join(', ')}`);
 
   // 1b. Muat plugin terinstal. Fungsi ini tidak pernah melempar error:
   //     plugin rusak = plugin dilewati, aplikasi tetap jalan.
