@@ -56,6 +56,21 @@ Kerugian terburuk: tampilan rusak, atau plugin lain terhapus.
 Begitu evidence dan data kasus tersimpan, plugin berbahaya bisa membaca atau mengirim
 semuanya keluar. **Step 6 tidak boleh dimulai sebelum isolasi plugin selesai.**
 
+### Mitigasi sementara (bukan pengganti isolasi)
+
+Sebelum lanjut ke Step 6, `buildCtx` (`src/core/capabilities.js`) sekarang menolak
+memberi capability `http`, `readFile`, `saveToCase` ke module dengan `source === 'plugin'`.
+Builtin tool (kode yang ikut repo) tetap dapat semuanya.
+
+Ini **bukan sandbox**. Plugin yang sudah di-import tetap bisa akses `fetch`,
+`FileReader`, dll langsung — yang ditutup cuma jalur ctx "resmi". Jadi plugin jahat
+yang nulis kode sendiri masih bisa baca `localStorage`/panggil Capacitor Filesystem
+langsung kalau dia mau coba-coba. Tujuannya cuma mencegah jalur yang paling gampang
+dan "kelihatan sah", bukan menutup semua jalan.
+
+**Masih wajib dikerjain sebelum klaim aman:** isolasi beneran (iframe sandbox / Web
+Worker) seperti di bagian "Arah solusi" di bawah.
+
 Arah solusi (belum dipilih, putuskan saat tahap itu):
 
 - Panel plugin: `<iframe sandbox>` tanpa `allow-same-origin`, komunikasi via `postMessage`.

@@ -25,10 +25,13 @@ const modules = new Map();
  * @param {string} [definition.group] - Nama grup menu di drawer (opsional)
  * @param {number} [definition.order] - Urutan di menu, kecil = atas (default 100)
  * @param {string} [definition.source] - 'builtin' (default) atau 'plugin'
+ * @param {string[]} [definition.capabilities] - Nama capability dari manifest,
+ *   diteruskan apa adanya ke buildCtx() oleh shell.js. Sebelum fix ini field
+ *   ini dibuang diam-diam, jadi ctx SELALU kosong untuk tool manapun.
  * @returns {boolean} true kalau berhasil, false kalau ditolak
  */
 export function register(definition) {
-  const { id, type, label, module, group, order, source } = definition;
+  const { id, type, label, module, group, order, source, capabilities } = definition;
 
   if (!id || !type || !module) {
     console.error('[Registry] Registrasi gagal: field id, type, dan module wajib ada.', definition);
@@ -52,6 +55,7 @@ export function register(definition) {
     group: group || null,
     order: Number.isFinite(order) ? order : 100,
     source: source === 'plugin' ? 'plugin' : 'builtin',
+    capabilities: Array.isArray(capabilities) ? capabilities : [],
     module,
   });
   return true;

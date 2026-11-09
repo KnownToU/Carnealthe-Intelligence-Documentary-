@@ -15,6 +15,10 @@ import { loadPanels } from './core/loader.js';
 import { loadInstalled } from './services/pluginService.js';
 import { initDrawer, openDrawer, closeDrawer } from './ui/drawer.js';
 import { buildCtx } from './core/capabilities.js';
+// caseStorage.js registrasi dirinya sendiri ke Registry sebagai module type
+// STORAGE pas pertama kali di-import. Import-nya sekarang lewat capabilities.js
+// (karena saveToCase butuh addNote dari situ), jadi nggak perlu diimpor manual
+// di sini lagi — tapi tetep kejamin kesedia sebelum render pertama.
 
 const PANELS_PATH = './panels';
 const TOOLS_PATH  = './tools';
@@ -41,7 +45,7 @@ function renderPanel(panelId) {
   }
 
   try {
-    const ctx = buildCtx(def.capabilities);
+    const ctx = buildCtx(def.capabilities, def.source);
     contentEl.appendChild(def.module.render(ctx));
   } catch (err) {
     // Panel yang error tidak boleh menjatuhkan aplikasi.
