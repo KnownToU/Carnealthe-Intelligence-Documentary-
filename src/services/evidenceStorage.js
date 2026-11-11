@@ -14,15 +14,27 @@
  * buffer penuh di memory lalu tulis sekali pas finish — localStorage nggak
  * punya append murah dan kuotanya kecil, jadi nggak masalah buat sesi tes.
  *
+ * SUDAH ADA (baru): abortEvidence(sessionId). Nutup kasus sesi yang MASIH
+ * HIDUP di memory tapi mau dibatalin (upload gagal di tengah appendEvidence,
+ * atau user batalin manual) -- session dihapus dari Map, dan folder
+ * evidence/{id} (kalau sempet kebuat) dihapus juga.
+ *
+ * SUDAH ADA (baru): deleteEvidence(id). Hapus evidence yang UDAH JADI
+ * (udah di-finish, punya meta.json) secara permanen -- beda kasus total
+ * sama abortEvidence. Belum dipanggil dari UI mana pun; tombolnya nyusul
+ * step terpisah (WAJIB pake konfirmasi dulu di sisi UI, ini operasi nggak
+ * bisa di-undo).
+ *
  * BELUM ada (sengaja, menyusul step terpisah — jangan buru-buru nutup):
- *   - abortEvidence. Kalau proses begin/append keputus (app ditutup paksa,
- *     dsb): backend Capacitor sekarang BISA ninggalin folder evidence/{id}
- *     dengan data.bin separuh jalan tanpa meta.json (karena nulisnya udah
- *     progresif sejak chunk pertama, bukan nunggu finish lagi). Non-fatal:
- *     nggak ngerusak evidence lain, nggak kebaca listEvidence (butuh
- *     meta.json buat muncul), cuma makan storage nganggur. Cleanup-nya
- *     nyusul bareng abortEvidence.
- *   - deleteEvidence. (readEvidence sudah ada, lihat fungsi di bawah.)
+ *   - Orphan sweep pas startup. abortEvidence() di atas CUMA nutup kasus
+ *     sesi yang masih ada sessionId-nya di memory. Kalau app ke-force-close
+ *     (bukan dibatalin manual), sessions Map ilang duluan sebelum sempet
+ *     manggil abortEvidence apa pun -- folder evidence/{id} separuh jalan
+ *     (data.bin ada, meta.json nggak ada) bakal ngendon di disk selamanya
+ *     kecuali ada sweep terpisah pas init() yang nyariin folder kayak gitu
+ *     dan ngebersihinnya. Non-fatal (storage nganggur doang, nggak kebaca
+ *     listEvidence karena nggak ada meta.json), tapi beda mekanisme dari
+ *     abortEvidence, jadi dicatat terpisah, bukan dianggap "udah kelar".
  *   - hash. DITUNDA jadi null, bukan dihapus — sha256Hex() di bawah masih
  *     ada tapi sengaja nggak dipanggil. Alasan: hash versi lama cuma bisa
  *     dihitung dari buffer UTUH (Web Crypto nggak punya mode incremental),
@@ -32,10 +44,13 @@
  *   - link ke Case. Record evidence TIDAK otomatis muncul di
  *     caseStorage.getCase() — caseId cuma disimpen di metadata evidence,
  *     arah baliknya (case -> daftar evidence-nya) nyusul step lain.
- *   - validasi caseId benar-benar ada di caseStorage. Sengaja dilewatin
- *     dulu biar modul ini nggak gantung ke caseStorage sama sekali.
- *     Efeknya: evidence bisa nunjuk ke caseId yang nggak ada (yatim).
- *     Non-fatal buat MVP, dicatat buat dibenerin nanti.
+ *
+ * SUDAH ADA (baru): validasi caseId exist. beginEvidence() sekarang manggil
+ * caseStorage.getCase(caseId) dulu sebelum bikin session — modul ini jadi
+ * gantung ke caseStorage.js (trade-off sadar, demi nutup celah evidence
+ * yatim), tapi error dari caseStorage DIBUNGKUS jadi EvidenceStorageError
+ * biar pemanggil evidenceStorage nggak perlu kenal CaseStorageError (SRP
+ * tetep kejaga, nggak bocor abstraksi modul lain).
  *   - finishEvidence tanpa appendEvidence sama sekali -> evidence 0 byte
  *     tetap kesimpen, nggak ditolak. Non-fatal, nyusul kalau kepake.
  *
@@ -43,6 +58,8 @@
  * Capacitor Filesystem (Directory.Data) kalau tersedia, fallback
  * localStorage kalau tidak (browser dev, `npm test`).
  */
+
+import { getCase } from './caseStorage.js';
 
 const PREFIX = 'cid:evidence:';   // dipakai backend localStorage
 const EVIDENCE_DIR = 'evidence';  // dipakai backend Capacitor
@@ -115,7 +132,8 @@ let sessionCounter = 0;
 /**
  * Mulai sesi tulis evidence baru.
  *
- * @param {string} caseId - BELUM divalidasi exist-nya. Lihat catatan di atas file.
+ * @param {string} caseId - divalidasi exist-nya (lewat caseStorage.getCase)
+ *   sebelum session dibuat. Lempar NOT_FOUND kalau case-nya nggak ada.
  * @param {{name?: string, mimeType?: string}} [meta]
  * @returns {Promise<string>} sessionId, dipakai di appendEvidence/finishEvidence
  */
@@ -124,6 +142,15 @@ export async function beginEvidence(caseId, meta = {}) {
 
   if (typeof caseId !== 'string' || !caseId.trim()) {
     throw new EvidenceStorageError('INVALID_DATA', 'caseId wajib teks, tidak boleh kosong.');
+  }
+
+  // Pastiin case-nya beneran ada SEBELUM bikin session (apalagi sebelum
+  // backend Capacitor mulai nulis folder evidence/{id}) — biar nggak ada
+  // evidence yatim yang nunjuk ke caseId ngaco/kehapus.
+  try {
+    await getCase(caseId);
+  } catch (err) {
+    throw new EvidenceStorageError('NOT_FOUND', `Case "${caseId}" tidak ditemukan, evidence tidak bisa dibuat: ${err.message}`);
   }
 
   const sessionId = `sess_${++sessionCounter}_${Math.random().toString(36).slice(2, 8)}`;
@@ -228,6 +255,48 @@ export async function finishEvidence(sessionId) {
 }
 
 /**
+ * Batalin sesi yang masih hidup di memory (upload gagal di tengah jalan,
+ * atau user pencet "batal"). Beda kasus sama "app di-force-close pas lagi
+ * upload" — kalau app ke-kill, sessionId ini sendiri ikut lenyap dari
+ * memory sebelum sempet dipanggil. Itu kelas masalah terpisah (orphan
+ * sweep pas startup), BELUM diimplementasi di sini — jangan dikira
+ * abortEvidence ini nutup kasus itu juga.
+ *
+ * Sesi dihapus dari memory setelah dipanggil, sukses maupun gagal — sama
+ * kayak finishEvidence, sesi yang udah coba dibatalin tidak boleh dipakai
+ * lagi.
+ *
+ * @param {string} sessionId
+ */
+export async function abortEvidence(sessionId) {
+  const session = sessions.get(sessionId);
+  if (!session) {
+    throw new EvidenceStorageError('NOT_FOUND', `Sesi evidence "${sessionId}" tidak ditemukan (sudah selesai, atau salah ID).`);
+  }
+  sessions.delete(sessionId);
+
+  if (hasCapacitor()) {
+    // Chunk yang udah keburu ditulis appendEvidence ada di evidence/{id}/
+    // (folder, belum ada meta.json karena finishEvidence belum dipanggil).
+    // Hapus seluruh folder itu -- session.id digenerate internal
+    // (generateEvidenceId()), bukan dari input user, jadi aman dipake
+    // bangun path tanpa sanitisasi tambahan.
+    const Filesystem = window.Capacitor.Plugins.Filesystem;
+    try {
+      await Filesystem.rmdir({ path: `${EVIDENCE_DIR}/${session.id}`, directory: FS_DIRECTORY, recursive: true });
+    } catch {
+      // Folder belum sempet ada sama sekali (abort sebelum appendEvidence
+      // pertama) -> rmdir gagal, itu wajar, bukan error buat dilaporkan.
+    }
+    return;
+  }
+
+  // Backend localStorage: belum ada apa pun ditulis ke disk sebelum finish
+  // (semua masih di session.fallbackChunks, in-memory), jadi hapus sesi
+  // dari Map di atas udah cukup -- fallbackChunks ikut kebuang bareng.
+}
+
+/**
  * Ambil semua evidence milik satu Case (metadata doang, bukan isi file).
  *
  * Desain sengaja: caseId yang bentuknya valid (teks, nggak kosong) tapi
@@ -318,6 +387,39 @@ export async function readEvidence(id) {
   }
   const parsed = JSON.parse(raw);
   return { meta, bytes: base64ToUint8(parsed.dataBase64) };
+}
+
+/**
+ * Hapus SATU evidence permanen (metadata + isi file). TIDAK BISA DIBATALIN
+ * -- beda kelas sama abortEvidence (yang buang sesi belum-jadi/sampah).
+ * Pemanggil (UI) wajib konfirmasi ke user dulu sebelum manggil ini.
+ *
+ * Validasi format id dilakuin DULU sebelum nyentuh filesystem, pola sama
+ * persis kayak readEvidence (lihat catatan di EVIDENCE_ID_PATTERN).
+ *
+ * @param {string} id
+ */
+export async function deleteEvidence(id) {
+  await init();
+  if (typeof id !== 'string' || !EVIDENCE_ID_PATTERN.test(id)) {
+    throw new EvidenceStorageError('INVALID_DATA', `id evidence tidak valid: "${id}".`);
+  }
+
+  await getEvidenceMeta(id); // sekalian mastiin evidence-nya exist (NOT_FOUND kalau nggak)
+
+  if (hasCapacitor()) {
+    const Filesystem = window.Capacitor.Plugins.Filesystem;
+    try {
+      // Sekali rmdir nutup data.bin + meta.json berbarengan -- nggak perlu
+      // peduli evidence-nya 0 byte (data.bin nggak pernah ada) apa nggak.
+      await Filesystem.rmdir({ path: `${EVIDENCE_DIR}/${id}`, directory: FS_DIRECTORY, recursive: true });
+    } catch (err) {
+      throw new EvidenceStorageError('IO_ERROR', `Gagal menghapus evidence "${id}": ${err.message}`);
+    }
+    return;
+  }
+
+  guard(() => getStore().removeItem(PREFIX + id));
 }
 
 // --- Internal ---

@@ -5,6 +5,10 @@
  * Nutup begin/append/finish (termasuk streaming per-chunk) + listEvidence +
  * getEvidenceMeta + readEvidence. abortEvidence/deleteEvidence belum ada,
  * jadi belum dites di sini.
+ *
+ * beginEvidence() sekarang validasi caseId exist lewat caseStorage.getCase(),
+ * jadi tes di sini bikin case ASLI dulu (cs.createCase()) buat dipake
+ * sebagai caseId, bukan string sembarang kayak "case_abc".
  */
 
 import assert from 'node:assert/strict';
@@ -29,7 +33,13 @@ const ls = {
 };
 globalThis.localStorage = ls;
 
+const cs = await import('../src/services/caseStorage.js');
 const es = await import('../src/services/evidenceStorage.js');
+
+// beginEvidence sekarang validasi caseId exist (lewat caseStorage.getCase),
+// jadi tes di bawah butuh case ASLI, bukan string sembarang kayak "case_abc".
+const caseAbc = (await cs.createCase('Case Abc (tes)')).id;
+const caseXyz = (await cs.createCase('Case Xyz (tes)')).id;
 
 let failed = 0;
 async function test(name, fn) {
@@ -57,8 +67,12 @@ await test('beginEvidence: tolak caseId kosong/bukan teks', async () => {
   await rejectsCode(es.beginEvidence(null), 'INVALID_DATA');
 });
 
+await test('beginEvidence: tolak caseId yang formatnya benar tapi tidak exist di caseStorage', async () => {
+  await rejectsCode(es.beginEvidence('case_ngawur123'), 'NOT_FOUND');
+});
+
 await test('appendEvidence: tolak sessionId salah dan chunk bukan Uint8Array', async () => {
-  const sid = await es.beginEvidence('case_abc');
+  const sid = await es.beginEvidence(caseAbc);
   await rejectsCode(es.appendEvidence('sesi_ngawur', new Uint8Array()), 'NOT_FOUND');
   await rejectsCode(es.appendEvidence(sid, 'bukan uint8array'), 'INVALID_DATA');
   // sesi masih hidup, belum di-finish -> buang biar gak nyampah ke tes lain
@@ -66,16 +80,16 @@ await test('appendEvidence: tolak sessionId salah dan chunk bukan Uint8Array', a
 });
 
 await test('finishEvidence: tanpa chunk apa pun -> size 0, hash ditunda (null)', async () => {
-  const sid = await es.beginEvidence('case_abc', { name: 'kosong.txt' });
+  const sid = await es.beginEvidence(caseAbc, { name: 'kosong.txt' });
   const rec = await es.finishEvidence(sid);
   assert.equal(rec.size, 0);
   assert.equal(rec.hash, null);
-  assert.equal(rec.caseId, 'case_abc');
+  assert.equal(rec.caseId, caseAbc);
   assert.equal(rec.name, 'kosong.txt');
 });
 
 await test('finishEvidence: gabung multi-chunk, hash ditunda (null), caseId & meta nyambung', async () => {
-  const sid = await es.beginEvidence('case_xyz', { name: 'abc.bin', mimeType: 'text/plain' });
+  const sid = await es.beginEvidence(caseXyz, { name: 'abc.bin', mimeType: 'text/plain' });
   await es.appendEvidence(sid, new TextEncoder().encode('a'));
   await es.appendEvidence(sid, new TextEncoder().encode('b'));
   await es.appendEvidence(sid, new TextEncoder().encode('c'));
@@ -83,7 +97,7 @@ await test('finishEvidence: gabung multi-chunk, hash ditunda (null), caseId & me
 
   assert.equal(rec.size, 3);
   assert.equal(rec.hash, null);
-  assert.equal(rec.caseId, 'case_xyz');
+  assert.equal(rec.caseId, caseXyz);
   assert.equal(rec.name, 'abc.bin');
   assert.equal(rec.mimeType, 'text/plain');
   assert.ok(rec.id.startsWith('ev_'));
@@ -91,7 +105,7 @@ await test('finishEvidence: gabung multi-chunk, hash ditunda (null), caseId & me
 });
 
 await test('finishEvidence: data beneran kesimpen & bisa dibaca balik utuh', async () => {
-  const sid = await es.beginEvidence('case_xyz', { name: 'roundtrip.bin' });
+  const sid = await es.beginEvidence(caseXyz, { name: 'roundtrip.bin' });
   const original = new TextEncoder().encode('abc');
   await es.appendEvidence(sid, original);
   const rec = await es.finishEvidence(sid);
@@ -106,7 +120,7 @@ await test('finishEvidence: data beneran kesimpen & bisa dibaca balik utuh', asy
 });
 
 await test('finishEvidence: sesi yang sama tidak bisa di-finish dua kali', async () => {
-  const sid = await es.beginEvidence('case_xyz');
+  const sid = await es.beginEvidence(caseXyz);
   await es.finishEvidence(sid);
   await rejectsCode(es.finishEvidence(sid), 'NOT_FOUND');
 });
@@ -116,10 +130,33 @@ await test('finishEvidence: sessionId ngawur ditolak', async () => {
 });
 
 await test('default meta: name/mimeType jatuh ke default kalau tidak dikasih', async () => {
-  const sid = await es.beginEvidence('case_xyz');
+  const sid = await es.beginEvidence(caseXyz);
   const rec = await es.finishEvidence(sid);
   assert.equal(rec.name, 'evidence');
   assert.equal(rec.mimeType, 'application/octet-stream');
+});
+
+await test('abortEvidence: sessionId ngawur ditolak', async () => {
+  await rejectsCode(es.abortEvidence('tidak_pernah_ada'), 'NOT_FOUND');
+});
+
+await test('abortEvidence: sesi yang dibatalin tidak bisa di-finish/append/abort lagi', async () => {
+  const sid = await es.beginEvidence(caseAbc, { name: 'batal.bin' });
+  await es.appendEvidence(sid, new TextEncoder().encode('sebagian'));
+  await es.abortEvidence(sid);
+
+  await rejectsCode(es.appendEvidence(sid, new Uint8Array()), 'NOT_FOUND');
+  await rejectsCode(es.finishEvidence(sid), 'NOT_FOUND');
+  await rejectsCode(es.abortEvidence(sid), 'NOT_FOUND');
+});
+
+await test('abortEvidence: evidence yang dibatalin tidak muncul di listEvidence', async () => {
+  const sid = await es.beginEvidence(caseAbc, { name: 'jangan-muncul.bin' });
+  await es.appendEvidence(sid, new TextEncoder().encode('x'));
+  await es.abortEvidence(sid);
+
+  const list = await es.listEvidence(caseAbc);
+  assert.ok(!list.some((m) => m.name === 'jangan-muncul.bin'));
 });
 
 await test('listEvidence: tolak caseId kosong/bukan teks', async () => {
@@ -133,8 +170,8 @@ await test('listEvidence: caseId valid tapi nggak punya evidence -> array kosong
 });
 
 await test('listEvidence: cuma balikin evidence milik caseId yang diminta, urut dari paling lama', async () => {
-  const caseA = `case_a_${Math.random().toString(36).slice(2, 8)}`;
-  const caseB = `case_b_${Math.random().toString(36).slice(2, 8)}`;
+  const caseA = (await cs.createCase('Case A (tes listEvidence)')).id;
+  const caseB = (await cs.createCase('Case B (tes listEvidence)')).id;
 
   const s1 = await es.beginEvidence(caseA, { name: 'satu.txt' });
   const rec1 = await es.finishEvidence(s1);
@@ -159,7 +196,7 @@ await test('getEvidenceMeta: id nggak exist -> NOT_FOUND', async () => {
 });
 
 await test('getEvidenceMeta: id exist -> balikin metadata yang sama persis dengan hasil finishEvidence', async () => {
-  const sid = await es.beginEvidence('case_xyz', { name: 'cek-meta.bin' });
+  const sid = await es.beginEvidence(caseXyz, { name: 'cek-meta.bin' });
   const rec = await es.finishEvidence(sid);
   const meta = await es.getEvidenceMeta(rec.id);
   assert.deepEqual(meta, rec);
@@ -177,7 +214,7 @@ await test('readEvidence: id format valid tapi gak exist -> NOT_FOUND (bukan IO_
 });
 
 await test('readEvidence: isi bytes balik SAMA PERSIS kayak yang di-append, lintas beberapa chunk', async () => {
-  const sid = await es.beginEvidence('case_xyz', { name: 'roundtrip.bin', mimeType: 'application/octet-stream' });
+  const sid = await es.beginEvidence(caseXyz, { name: 'roundtrip.bin', mimeType: 'application/octet-stream' });
   const chunk1 = new Uint8Array([1, 2, 3, 4, 5]);
   const chunk2 = new Uint8Array([255, 0, 128, 64]);
   await es.appendEvidence(sid, chunk1);
@@ -190,10 +227,41 @@ await test('readEvidence: isi bytes balik SAMA PERSIS kayak yang di-append, lint
 });
 
 await test('readEvidence: evidence 0 byte (finish tanpa append) -> bytes kosong, bukan error', async () => {
-  const sid = await es.beginEvidence('case_xyz');
+  const sid = await es.beginEvidence(caseXyz);
   const rec = await es.finishEvidence(sid);
   const { bytes } = await es.readEvidence(rec.id);
   assert.equal(bytes.length, 0);
+});
+
+await test('deleteEvidence: tolak id yang formatnya bukan hasil generateEvidenceId (termasuk percobaan path traversal)', async () => {
+  await rejectsCode(es.deleteEvidence('../../etc/passwd'), 'INVALID_DATA');
+  await rejectsCode(es.deleteEvidence(''), 'INVALID_DATA');
+  await rejectsCode(es.deleteEvidence(null), 'INVALID_DATA');
+});
+
+await test('deleteEvidence: id format valid tapi gak exist -> NOT_FOUND', async () => {
+  await rejectsCode(es.deleteEvidence('ev_tidakpernahada123'), 'NOT_FOUND');
+});
+
+await test('deleteEvidence: evidence beneran ilang -> getEvidenceMeta & readEvidence & listEvidence nggak nemuin lagi', async () => {
+  const sid = await es.beginEvidence(caseXyz, { name: 'bakal-dihapus.bin' });
+  await es.appendEvidence(sid, new TextEncoder().encode('data'));
+  const rec = await es.finishEvidence(sid);
+
+  await es.deleteEvidence(rec.id);
+
+  await rejectsCode(es.getEvidenceMeta(rec.id), 'NOT_FOUND');
+  await rejectsCode(es.readEvidence(rec.id), 'NOT_FOUND');
+  const list = await es.listEvidence(caseXyz);
+  assert.ok(!list.some((m) => m.id === rec.id));
+});
+
+await test('deleteEvidence: dipanggil dua kali -> kedua kalinya NOT_FOUND (bukan diem-diem sukses)', async () => {
+  const sid = await es.beginEvidence(caseXyz, { name: 'hapus-dua-kali.bin' });
+  const rec = await es.finishEvidence(sid);
+
+  await es.deleteEvidence(rec.id);
+  await rejectsCode(es.deleteEvidence(rec.id), 'NOT_FOUND');
 });
 
 console.log(failed === 0 ? '\nSEMUA TES LULUS' : `\n${failed} TES GAGAL`);

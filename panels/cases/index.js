@@ -14,7 +14,7 @@
  * daripada daftarin panel/hash baru buat sekadar tampilan sub-view.
  */
 import { listCases, createCase, getCase, addNote } from '../../src/services/caseStorage.js';
-import { listEvidence, readEvidence } from '../../src/services/evidenceStorage.js';
+import { listEvidence, readEvidence, deleteEvidence } from '../../src/services/evidenceStorage.js';
 import { uploadEvidenceFile } from '../../src/services/evidenceUpload.js';
 import { downloadEvidence } from '../../src/services/evidenceDownload.js';
 
@@ -178,8 +178,12 @@ export default {
 
         const dlBtn = el('button', 'btn btn--primary', 'Download');
         dlBtn.type = 'button';
+        const delBtn = el('button', 'btn btn--danger', 'Hapus');
+        delBtn.type = 'button';
+
         dlBtn.addEventListener('click', async () => {
           dlBtn.disabled = true;
+          delBtn.disabled = true;
           dlBtn.textContent = 'Memuat...';
           try {
             const { meta, bytes } = await readEvidence(item.id);
@@ -188,11 +192,34 @@ export default {
             setFeedback(`Gagal mengunduh evidence: ${err.message}`, 'error');
           } finally {
             dlBtn.disabled = false;
+            delBtn.disabled = false;
             dlBtn.textContent = 'Download';
           }
         });
 
-        row.append(info, dlBtn);
+        delBtn.addEventListener('click', async () => {
+          // confirm() browser/WebView bawaan: paling simpel, nggak perlu bikin
+          // modal sendiri. Delete di evidenceStorage.js TIDAK BISA DIBATALIN,
+          // makanya konfirmasi ini wajib ada sebelum manggil deleteEvidence.
+          const yakin = confirm(`Hapus evidence "${item.name}"? Tidak bisa dibatalkan.`);
+          if (!yakin) return;
+
+          dlBtn.disabled = true;
+          delBtn.disabled = true;
+          delBtn.textContent = 'Menghapus...';
+          try {
+            await deleteEvidence(item.id);
+            setFeedback('Evidence dihapus.', 'success');
+            await refreshEvidence();
+          } catch (err) {
+            setFeedback(`Gagal menghapus evidence: ${err.message}`, 'error');
+            dlBtn.disabled = false;
+            delBtn.disabled = false;
+            delBtn.textContent = 'Hapus';
+          }
+        });
+
+        row.append(info, dlBtn, delBtn);
         return row;
       }
 

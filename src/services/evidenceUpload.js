@@ -8,11 +8,12 @@
  * bytes". Dipisah dari panel (SRP juga): panel cuma manggil
  * uploadEvidenceFile() dan render hasil/errornya, nggak tau soal slicing.
  *
- * STATUS: happy path doang. BELUM ada: cancel upload di tengah jalan
- * (kalau mau batalin, satu-satunya cara sekarang nunggu sampe selesai atau
- * reload app — sama kelasnya kayak gap abortEvidence di evidenceStorage.js).
+ * STATUS: BELUM ada tombol "batalin" manual dari UI (user belum bisa
+ * motong upload yang lagi jalan sendiri). Tapi kalau upload-nya GAGAL
+ * sendiri di tengah jalan (disk penuh, dll), sesinya sekarang dibersihin
+ * pake abortEvidence() -- lihat catatan di dalam fungsi.
  */
-import { beginEvidence, appendEvidence, finishEvidence, RECOMMENDED_CHUNK_SIZE } from './evidenceStorage.js';
+import { beginEvidence, appendEvidence, finishEvidence, abortEvidence, RECOMMENDED_CHUNK_SIZE } from './evidenceStorage.js';
 
 /**
  * Upload satu File browser sebagai evidence milik sebuah Case, dipotong
@@ -26,16 +27,30 @@ import { beginEvidence, appendEvidence, finishEvidence, RECOMMENDED_CHUNK_SIZE }
 export async function uploadEvidenceFile(caseId, file) {
   const sessionId = await beginEvidence(caseId, { name: file.name, mimeType: file.type });
 
-  let offset = 0;
-  while (offset < file.size) {
-    const slice = file.slice(offset, offset + RECOMMENDED_CHUNK_SIZE);
-    const buffer = await slice.arrayBuffer();
-    await appendEvidence(sessionId, new Uint8Array(buffer));
-    offset += RECOMMENDED_CHUNK_SIZE;
+  try {
+    let offset = 0;
+    while (offset < file.size) {
+      const slice = file.slice(offset, offset + RECOMMENDED_CHUNK_SIZE);
+      const buffer = await slice.arrayBuffer();
+      await appendEvidence(sessionId, new Uint8Array(buffer));
+      offset += RECOMMENDED_CHUNK_SIZE;
+    }
+    // file.size === 0 (file kosong) -> loop di atas nggak jalan sama sekali,
+    // finishEvidence tetap dipanggil, hasilnya evidence 0 byte (gap yang
+    // udah dicatat di evidenceStorage.js, bukan kejutan baru).
+  } catch (err) {
+    // appendEvidence gagal di tengah jalan -> sesi masih nyangkut di memory
+    // DAN folder evidence/{id} separuh jalan masih ada di disk kalau nggak
+    // dibersihin. abortEvidence nutup dua-duanya. Kalau abort-nya sendiri
+    // gagal, biarin aja -- yang paling penting error ASLI (penyebab upload
+    // gagal) tetep nyampe ke pemanggil, bukan error dari cleanup.
+    try {
+      await abortEvidence(sessionId);
+    } catch {
+      // non-fatal, lihat alasan di atas.
+    }
+    throw err;
   }
-  // file.size === 0 (file kosong) -> loop di atas nggak jalan sama sekali,
-  // finishEvidence tetap dipanggil, hasilnya evidence 0 byte (gap yang udah
-  // dicatat di evidenceStorage.js, bukan kejutan baru).
 
   return finishEvidence(sessionId);
 }
