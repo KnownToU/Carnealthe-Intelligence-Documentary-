@@ -22,7 +22,7 @@
  *     nggak ngerusak evidence lain, nggak kebaca listEvidence (butuh
  *     meta.json buat muncul), cuma makan storage nganggur. Cleanup-nya
  *     nyusul bareng abortEvidence.
- *   - readEvidence (baca isi file-nya), deleteEvidence.
+ *   - deleteEvidence. (readEvidence sudah ada, lihat fungsi di bawah.)
  *   - hash. DITUNDA jadi null, bukan dihapus — sha256Hex() di bawah masih
  *     ada tapi sengaja nggak dipanggil. Alasan: hash versi lama cuma bisa
  *     dihitung dari buffer UTUH (Web Crypto nggak punya mode incremental),
@@ -72,6 +72,14 @@ function generateEvidenceId() {
   const rand = Math.random().toString(36).slice(2, 10);
   return `ev_${Date.now().toString(36)}${rand}`;
 }
+
+// Pola ID yang digenerate generateEvidenceId(): "ev_" + karakter base36 doang.
+// readEvidence() WAJIB cek ini sebelum nyusun path buat Filesystem.readFile —
+// id dipake langsung jadi bagian path native (`evidence/${id}/data.bin`),
+// jadi kalau suatu hari ada jalur baru yang ngasih id dari luar (bukan dari
+// listEvidence/getEvidenceMeta), id kayak "../../../other-app-data" gak akan
+// lolos regex ini dan ditolak sebelum sempet nyentuh filesystem native.
+const EVIDENCE_ID_PATTERN = /^ev_[a-z0-9]+$/;
 
 let ready = false;
 
@@ -261,6 +269,49 @@ export async function getEvidenceMeta(id) {
   return found;
 }
 
+/**
+ * Baca ISI file evidence (bukan cuma metadatanya) buat ditampilin/didownload.
+ *
+ * Validasi format id dilakuin DULU sebelum nyentuh filesystem sama sekali —
+ * lihat catatan di EVIDENCE_ID_PATTERN kenapa ini penting (bukan cuma soal
+ * data gak valid, tapi soal path yang dikirim ke plugin native).
+ *
+ * @param {string} id
+ * @returns {Promise<{meta: object, bytes: Uint8Array}>}
+ */
+export async function readEvidence(id) {
+  await init();
+  if (typeof id !== 'string' || !EVIDENCE_ID_PATTERN.test(id)) {
+    throw new EvidenceStorageError('INVALID_DATA', `id evidence tidak valid: "${id}".`);
+  }
+
+  const meta = await getEvidenceMeta(id); // sekalian mastiin evidence-nya exist (NOT_FOUND kalau nggak)
+
+  if (hasCapacitor()) {
+    const Filesystem = window.Capacitor.Plugins.Filesystem;
+    try {
+      const res = await Filesystem.readFile({
+        path: `${EVIDENCE_DIR}/${id}/data.bin`,
+        directory: FS_DIRECTORY,
+        // tanpa 'encoding': balik base64 biner apa adanya, sama kayak appendFile.
+      });
+      return { meta, bytes: base64ToUint8(res.data) };
+    } catch (err) {
+      throw new EvidenceStorageError('IO_ERROR', `Gagal membaca isi evidence "${id}": ${err.message}`);
+    }
+  }
+
+  const store = getStore();
+  const raw = store.getItem(PREFIX + id);
+  if (!raw) {
+    // Harusnya gak kejadian (getEvidenceMeta di atas udah nemu meta-nya),
+    // tapi kalau kejadian (race/corrupt), lebih aman NOT_FOUND daripada crash.
+    throw new EvidenceStorageError('NOT_FOUND', `Evidence "${id}" tidak ditemukan.`);
+  }
+  const parsed = JSON.parse(raw);
+  return { meta, bytes: base64ToUint8(parsed.dataBase64) };
+}
+
 // --- Internal ---
 
 /**
@@ -337,6 +388,16 @@ function uint8ToBase64(bytes) {
     binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
   }
   return btoa(binary);
+}
+
+/** base64 -> Uint8Array. Kebalikan uint8ToBase64(), dipakai readEvidence. */
+function base64ToUint8(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
 }
 
 /**

@@ -14,7 +14,7 @@
  * daripada daftarin panel/hash baru buat sekadar tampilan sub-view.
  */
 import { listCases, createCase, getCase, addNote } from '../../src/services/caseStorage.js';
-import { listEvidence } from '../../src/services/evidenceStorage.js';
+import { listEvidence, readEvidence } from '../../src/services/evidenceStorage.js';
 import { uploadEvidenceFile } from '../../src/services/evidenceUpload.js';
 
 function el(tag, className, text) {
@@ -22,6 +22,43 @@ function el(tag, className, text) {
   if (className) node.className = className;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+/** Format ukuran byte jadi teks gampang dibaca (B/KB/MB/GB). */
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes)) return '? B';
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ['KB', 'MB', 'GB'];
+  let value = bytes / 1024;
+  let i = 0;
+  while (value >= 1024 && i < units.length - 1) {
+    value /= 1024;
+    i++;
+  }
+  return `${value.toFixed(1)} ${units[i]}`;
+}
+
+/**
+ * Download isi evidence ke user lewat <a download>.
+ *
+ * PENTING (soal security, jangan diubah tanpa diskusi eksplisit):
+ * Blob SELALU dipaksa type 'application/octet-stream' apa pun
+ * meta.mimeType aslinya, dan isinya SELALU lewat <a download> (bukan
+ * window.open / iframe). meta.mimeType itu data gak terpercaya (asal dari
+ * file upload user) — kalau dipercaya buat nentuin cara render dan sampe
+ * dirender sebagai HTML aktif di WebView yang sama dengan app, itu nembus
+ * ke jembatan Capacitor. mimeType cuma boleh ditampilin sebagai teks info.
+ */
+function downloadEvidence(meta, bytes) {
+  const blob = new Blob([bytes], { type: 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const link = el('a');
+  link.href = url;
+  link.download = meta.name || meta.id;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function itemRow(name, meta) {
@@ -101,13 +138,15 @@ export default {
       backBtn.addEventListener('click', showList);
 
       const caseTitle = el('h2', 'panel__title', '...');
-      const evidenceCount = el('p', 'panel__subtitle', '');
 
       const uploadBtn = el('button', 'btn btn--primary', 'Upload Evidence');
       uploadBtn.type = 'button';
       const fileInput = el('input');
       fileInput.type = 'file';
       fileInput.style.display = 'none';
+
+      const evidenceSectionTitle = el('h3', 'module-section-title', 'Evidence');
+      const evidenceList = el('ul', 'module-list');
 
       const notesList = el('ul', 'module-list');
 
@@ -121,7 +160,18 @@ export default {
       const feedback = el('p', 'module-feedback');
       feedback.setAttribute('role', 'status');
 
-      body.append(backBtn, caseTitle, evidenceCount, uploadBtn, fileInput, notesList, noteInput, addNoteBtn, feedback);
+      body.append(
+        backBtn,
+        caseTitle,
+        uploadBtn,
+        fileInput,
+        evidenceSectionTitle,
+        evidenceList,
+        notesList,
+        noteInput,
+        addNoteBtn,
+        feedback
+      );
 
       function setFeedback(text, kind = 'info') {
         feedback.textContent = text;
@@ -140,13 +190,47 @@ export default {
         });
       }
 
+      function evidenceRow(item) {
+        const row = el('li', 'module-row');
+        const info = el('div', 'module-row__info');
+        info.append(
+          el('div', 'module-row__name', item.name),
+          el('div', 'module-row__meta', `${formatBytes(item.size)} · ${item.mimeType}`)
+        );
+
+        const dlBtn = el('button', 'btn btn--primary', 'Download');
+        dlBtn.type = 'button';
+        dlBtn.addEventListener('click', async () => {
+          dlBtn.disabled = true;
+          dlBtn.textContent = 'Memuat...';
+          try {
+            const { meta, bytes } = await readEvidence(item.id);
+            downloadEvidence(meta, bytes);
+          } catch (err) {
+            setFeedback(`Gagal mengunduh evidence: ${err.message}`, 'error');
+          } finally {
+            dlBtn.disabled = false;
+            dlBtn.textContent = 'Download';
+          }
+        });
+
+        row.append(info, dlBtn);
+        return row;
+      }
+
       async function refreshEvidence() {
+        evidenceList.replaceChildren();
         try {
           const evidence = await listEvidence(caseId);
-          evidenceCount.textContent = `${evidence.length} evidence`;
+          evidenceSectionTitle.textContent = `Evidence (${evidence.length})`;
+          if (evidence.length === 0) {
+            evidenceList.append(el('li', 'module-empty', 'Belum ada evidence di case ini.'));
+            return;
+          }
+          evidence.forEach((item) => evidenceList.append(evidenceRow(item)));
         } catch (err) {
-          evidenceCount.textContent = '? evidence';
-          console.error('Gagal membaca evidence:', err);
+          evidenceSectionTitle.textContent = 'Evidence (?)';
+          setFeedback(`Gagal membaca daftar evidence: ${err.message}`, 'error');
         }
       }
 

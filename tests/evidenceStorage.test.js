@@ -3,7 +3,7 @@
  * Jalankan: npm test
  *
  * Nutup begin/append/finish (termasuk streaming per-chunk) + listEvidence +
- * getEvidenceMeta. abortEvidence/readEvidence/deleteEvidence belum ada,
+ * getEvidenceMeta + readEvidence. abortEvidence/deleteEvidence belum ada,
  * jadi belum dites di sini.
  */
 
@@ -163,6 +163,37 @@ await test('getEvidenceMeta: id exist -> balikin metadata yang sama persis denga
   const rec = await es.finishEvidence(sid);
   const meta = await es.getEvidenceMeta(rec.id);
   assert.deepEqual(meta, rec);
+});
+
+await test('readEvidence: tolak id yang formatnya bukan hasil generateEvidenceId (termasuk percobaan path traversal)', async () => {
+  await rejectsCode(es.readEvidence('../../etc/passwd'), 'INVALID_DATA');
+  await rejectsCode(es.readEvidence(''), 'INVALID_DATA');
+  await rejectsCode(es.readEvidence(null), 'INVALID_DATA');
+  await rejectsCode(es.readEvidence('ev_ada/slash'), 'INVALID_DATA');
+});
+
+await test('readEvidence: id format valid tapi gak exist -> NOT_FOUND (bukan IO_ERROR)', async () => {
+  await rejectsCode(es.readEvidence('ev_tidakpernahada123'), 'NOT_FOUND');
+});
+
+await test('readEvidence: isi bytes balik SAMA PERSIS kayak yang di-append, lintas beberapa chunk', async () => {
+  const sid = await es.beginEvidence('case_xyz', { name: 'roundtrip.bin', mimeType: 'application/octet-stream' });
+  const chunk1 = new Uint8Array([1, 2, 3, 4, 5]);
+  const chunk2 = new Uint8Array([255, 0, 128, 64]);
+  await es.appendEvidence(sid, chunk1);
+  await es.appendEvidence(sid, chunk2);
+  const rec = await es.finishEvidence(sid);
+
+  const { meta, bytes } = await es.readEvidence(rec.id);
+  assert.deepEqual(meta, rec);
+  assert.deepEqual([...bytes], [...chunk1, ...chunk2]);
+});
+
+await test('readEvidence: evidence 0 byte (finish tanpa append) -> bytes kosong, bukan error', async () => {
+  const sid = await es.beginEvidence('case_xyz');
+  const rec = await es.finishEvidence(sid);
+  const { bytes } = await es.readEvidence(rec.id);
+  assert.equal(bytes.length, 0);
 });
 
 console.log(failed === 0 ? '\nSEMUA TES LULUS' : `\n${failed} TES GAGAL`);
