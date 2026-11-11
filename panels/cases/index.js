@@ -39,29 +39,6 @@ function formatBytes(bytes) {
   return `${value.toFixed(1)} ${units[i]}`;
 }
 
-/**
- * Download isi evidence ke user lewat <a download>.
- *
- * PENTING (soal security, jangan diubah tanpa diskusi eksplisit):
- * Blob SELALU dipaksa type 'application/octet-stream' apa pun
- * meta.mimeType aslinya, dan isinya SELALU lewat <a download> (bukan
- * window.open / iframe). meta.mimeType itu data gak terpercaya (asal dari
- * file upload user) — kalau dipercaya buat nentuin cara render dan sampe
- * dirender sebagai HTML aktif di WebView yang sama dengan app, itu nembus
- * ke jembatan Capacitor. mimeType cuma boleh ditampilin sebagai teks info.
- */
-function downloadEvidence(meta, bytes) {
-  const blob = new Blob([bytes], { type: 'application/octet-stream' });
-  const url = URL.createObjectURL(blob);
-  const link = el('a');
-  link.href = url;
-  link.download = meta.name || meta.id;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
-
 function itemRow(name, meta) {
   const row = el('li', 'module-row');
   const info = el('div', 'module-row__info');
