@@ -1,8 +1,0 @@
-{
-  "id": "saveTest",
-  "type": "tool",
-  "label": "Save Test (sementara)",
-  "version": "0.0.1",
-  "group": "Tools",
-  "capabilities": ["saveToCase"]
-}

@@ -2,6 +2,41 @@
 
 Status: **Step 3B-1**. Dokumen ini harus diperbarui saat isolasi plugin dikerjakan.
 
+## UPDATE: installer runtime dicabut
+
+Premis dokumen ini DULU: siapa pun bisa install plugin pihak ketiga lewat UI
+(`panels/settingsModules`), jadi ada aktor "pembuat plugin berbahaya" dan
+"pengguna yang tertipu install plugin berbahaya" yang nyata.
+
+Keputusan baru: **satu-satunya plugin yang akan pernah ada di CID adalah
+plugin resmi buatan developer sendiri.** Nggak ada install-dari-HP lagi.
+Plugin resmi masuk ke app lewat folder yang di-scan otomatis (`npm run scan`),
+persis sama kayak Case Manager sekarang — bukan modul asing yang dimuat
+runtime dari localStorage/Filesystem.
+
+Konsekuensi:
+- `src/services/pluginService.js` dan `pluginStorage.js` **dihapus** (install
+  fase, Blob URL import, rollback, dst — semua itu buat masalah yang sekarang
+  nggak ada: nerima kode dari luar saat runtime).
+- Aktor "pembuat plugin berbahaya" dan "pengguna tertipu" di bawah ini jadi
+  **nggak relevan** untuk sekarang. Kode plugin resmi levelnya sama kayak
+  kode builtin — sama-sama ditulis dan dipercaya oleh developer yang sama.
+- Deadline "Step 6 (Storage/Evidence) tidak boleh mulai sebelum isolasi
+  plugin selesai" di bawah **dicabut**. Evidence boleh mulai dikerjain.
+- Isolasi beneran (iframe sandbox / Web Worker, bagian "Arah solusi" di
+  bawah) jadi **prasyarat SEBELUM CID membuka diri ke plugin pihak ketiga**
+  di masa depan — bukan prasyarat buat developer sendiri lanjut ngoding.
+- Kalau nanti CID beneran dibuka ke plugin pihak ketiga (bukan cuma resmi),
+  seluruh bagian di bawah ini (sampai "Mitigasi sementara") balik relevan
+  dan installer kemungkinan perlu dibangun ulang dari nol dengan isolasi
+  beneran dari awal, bukan ditambal belakangan.
+- Rencana arsitektur: plugin resmi yang komunikasi ke layanan luar bakal
+  punya orchestrator terisolasi sendiri per plugin (belum didesain, dicatat
+  biar nggak kelupaan — bukan capability-gate generik kayak di bawah).
+
+Bagian di bawah ini (per Step 3B-1 lama) dibiarin apa adanya sebagai arsip
+keputusan saat itu, KECUALI bagian "DEADLINE" yang statusnya dicabut di atas.
+
 ## Ringkasan jujur
 
 Plugin yang dimuat = kode asing yang berjalan di dalam aplikasi dengan **hak yang sama

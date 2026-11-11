@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "scan": "node scripts/scan.js",
-    "test": "node tests/installer.test.js",
+    "test": "node tests/evidenceStorage.test.js",
     "build:web": "node scripts/copy-web.js"
   },
   "dependencies": {

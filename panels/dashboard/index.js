@@ -1,12 +1,9 @@
 /**
  * Panel Dashboard.
  * Kontrak panel: export default { render() } yang mengembalikan elemen DOM.
- *
- * render() harus sync, tapi sebagian data (status plugin) datangnya async.
- * Pola: tampilkan dulu yang sync, isi yang async setelah resolve.
+ * Semua data di sini sync (dari Registry), jadi render() nggak perlu nunggu apa-apa.
  */
 import { getByType, MODULE_TYPES } from '../../src/core/registry.js';
-import { getInstalled } from '../../src/services/pluginService.js';
 
 /** Satu kartu statistik. Dibikin fungsi biar gampang nambah kartu baru nanti. */
 function statCard(label, initialValue) {
@@ -45,21 +42,14 @@ export default {
     const panelCount = getByType(MODULE_TYPES.PANEL).length;
     const { card: panelCard } = statCard('Panel Terdaftar', String(panelCount));
 
-    // Section 2: status plugin (async, dari pluginService).
-    const { card: pluginCard, value: pluginValue } = statCard('Plugin Aktif', '...');
-    getInstalled()
-      .then((plugins) => {
-        const active = plugins.filter((p) => p.status === 'active').length;
-        pluginValue.textContent = `${active} / ${plugins.length}`;
-      })
-      .catch(() => {
-        // getInstalled() tidak pernah melempar di desain pluginService,
-        // tapi dijaga saja supaya Dashboard tidak ikut rusak kalau suatu
-        // saat itu berubah.
-        pluginValue.textContent = '?';
-      });
+    // Section 2: jumlah tool terdaftar (sync, dari Registry).
+    // Dulu di sini ada kartu "Plugin Aktif" (async, dari pluginService).
+    // Dihapus karena nggak ada lagi plugin yang diinstal runtime — semua
+    // modul (termasuk plugin resmi) dimuat lewat loader.js seperti panel biasa.
+    const toolCount = getByType(MODULE_TYPES.TOOL).length;
+    const { card: toolCard } = statCard('Tool Terdaftar', String(toolCount));
 
-    grid.append(panelCard, pluginCard);
+    grid.append(panelCard, toolCard);
     el.append(title, sub, grid);
     return el;
   },

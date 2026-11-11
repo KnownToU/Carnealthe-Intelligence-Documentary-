@@ -12,7 +12,6 @@ import { initRouter } from './core/router.js';
 import { get } from './core/registry.js';
 import { on } from './core/eventBus.js';
 import { loadPanels } from './core/loader.js';
-import { loadInstalled } from './services/pluginService.js';
 import { initDrawer, openDrawer, closeDrawer } from './ui/drawer.js';
 import { buildCtx } from './core/capabilities.js';
 // caseStorage.js registrasi dirinya sendiri ke Registry sebagai module type
@@ -76,12 +75,6 @@ export async function initShell() {
   const { loaded: toolsLoaded, failed: toolsFailed } = await loadPanels(TOOLS_PATH);
   console.info(`[Shell] Tool dimuat: ${toolsLoaded.join(', ') || '(tidak ada)'}`);
   if (toolsFailed.length) console.warn(`[Shell] Tool gagal: ${toolsFailed.join(', ')}`);
-
-  // 1b. Muat plugin terinstal. Fungsi ini tidak pernah melempar error:
-  //     plugin rusak = plugin dilewati, aplikasi tetap jalan.
-  const plugins = await loadInstalled();
-  const pluginOk = plugins.filter(p => p.status === 'active').length;
-  console.info(`[Shell] Plugin aktif: ${pluginOk}/${plugins.length}`);
 
   // 2. Drawer membangun menu dari Registry (grup dan urutan dari manifest).
   initDrawer(drawerEl, overlayEl);
