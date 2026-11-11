@@ -287,6 +287,14 @@ export async function readEvidence(id) {
 
   const meta = await getEvidenceMeta(id); // sekalian mastiin evidence-nya exist (NOT_FOUND kalau nggak)
 
+  // Evidence 0 byte (finish tanpa append sama sekali) -> data.bin MEMANG
+  // nggak pernah dibikin di backend Capacitor (appendFile cuma kepanggil
+  // kalau ada chunk). Jangan coba baca filesystem buat kasus ini, meta.size
+  // udah ngasih tau jawabannya duluan.
+  if (meta.size === 0) {
+    return { meta, bytes: new Uint8Array(0) };
+  }
+
   if (hasCapacitor()) {
     const Filesystem = window.Capacitor.Plugins.Filesystem;
     try {

@@ -16,6 +16,7 @@
 import { listCases, createCase, getCase, addNote } from '../../src/services/caseStorage.js';
 import { listEvidence, readEvidence } from '../../src/services/evidenceStorage.js';
 import { uploadEvidenceFile } from '../../src/services/evidenceUpload.js';
+import { downloadEvidence } from '../../src/services/evidenceDownload.js';
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
